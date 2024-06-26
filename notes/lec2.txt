@@ -1,0 +1,181 @@
+Concrete Syntax
+
+let value = 8;
+let result = 1;
+for (let i = value; i > 0; i = i - 1) {
+    result = result * i;
+}
+console.log(result);
+
+    easy representation to write 
+    bad representation for transforming
+
+Abstact Syntax
+    AST - tree represents every concept in the language as a node 
+
+          Program 
+              | 
+            Block
+          /       |    \        \
+        let      let    for      Exp
+      /  \     /    \   /         |
+    value 8 result   1           Call
+                                 /   \ 
+                                Dot    result
+                               /   \
+                           console  log
+
+What makes it good vs challenging for compilers
+Pros:
+    Perfect for interpretor
+    use recursive functions to process levels in the tree 
+    and call yourself and to run the program
+
+Cons:
+    All different types of nodes in this tree have different behavior.
+    To wrte a compiler analysis, you have to constantly be reasoning about 
+    the difference in semantics of all these different types of nodes.
+
+represent program as lists of instructions
+-> make the representation more regular 
+instructions
+@main {
+  v0: int = const 8;
+  value: int = id v0;
+  v1: int = const 1;
+  result: int = id v1;
+  v3: int = id value;
+  i: int = id v3;
+.for.cond:
+  v4: int = id i;
+  v5: int = const 0;
+  v6: bool = gt v4 v5;
+  br v6 .for.body .for.end;
+.for.body:
+  v7: int = id result;
+  v8: int = id i;
+  v9: int = mul v7 v8;
+  result: int = id v9;
+  v10: int = id i;
+  v11: int = const 1;
+  v12: int = sub v10 v11;
+  i: int = id v12;
+  jmp .for.cond;
+.for.end:
+  v13: int = id result;
+  print v13;
+}
+
+CFG - Control Flow Graph 
+- A directed Graph
+- Vertices are instructions
+- Edges indicate possible flow of Control
+- Exactly one entry vertex & one exit vertex
+
+@main {
+  v: int = const 5;
+  print v;
+}
+
+const 
+ \
+ print
+
+@main {
+  v: int = const 4;
+  jmp .somewhere;
+  v: int = const 2;
+.somewhere:
+  print v;
+}
+  v: int = const 4
+     |
+     v
+  jmp.somewhere   v: int = const 2
+     |             /
+     v            <
+    print 
+
+Coarsening a control flow graph to use basic blocks.
+Basic blocks
+  - Replace single instructions as vertices in the CFG with little sequences of instructions.
+  - Jumps and branches only happen at the end of a basic block.
+    And you can only jump to the top of a basic block.
+
+  - If any instruction in a basic block executes, all of its instructions must execute.
+
+
+@main {
+  v: int = const 4;
+  b: bool = const false;
+  br b .there .here;
+.here:
+  v: int = const 2;
+.there:
+  print v;
+}
+
+   ENTRY  
+    -----------------------
+   | v: int = const 4;     |
+   | b: bool = const false;|
+   | br b .there .here;    | TERMINATOR
+    -----------------------
+ TRUE |                 |  FALSE
+      |                ------------------
+      |               | v: int = const 2;|    this block don't have terminators because it falls through to the next instruction
+     ----------        ------------------
+    | print v; |  <----------|    
+     ----------  
+     EXIT     
+
+     the last one is the only one that can be a terminator
+
+An algorithm to form basic blocks?
+To form a CFG out of basic blocks?
+
+We need an algorithm...
+Linear list of instructions -> a graph based representation,CFG
+
+Step 1.
+Linear list of instructions -> basic blocks
+
+IN: instr  <--- List of Instrs [v0: int = const 2, .lbl: , ...]
+OUT: blocks <--- List of Lists instrs 
+
+How would you loop over the list of instructions and create lists of instructions to put into this list of list of instructions?
+
+TERMINATOR = [br, jmp]
+
+blocks = []
+block = []
+
+lb2block = {} # label : list of instrs
+
+for i in instrs:
+  if i is not a LABEL:
+    block.append(i)
+  if i is a LABEL or TERMINATOR:
+    blocks.append(block)
+    block = []
+
+Now to extract CFG from basic blocks, we need to map from labels to basic blocks.
+
+OUT cfg = {}
+    
+    [ ]  PRED
+     |
+     v
+    [ ]  BLOCK
+    / \
+   [] []  SUCC
+
+
+for block in blocks:
+    last = block[-1]
+    if last is JMP:
+        ADD EDGE from block to last.dest
+    else if last is BR:
+        ADD two EDGES from block to last.TRUE & last.FALSE
+    else:
+        ADD EDGE to block+1 if it exists
